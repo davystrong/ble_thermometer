@@ -10,13 +10,14 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN
-from .coordinator import GenericBTCoordinator
-from .generic_bt_api.device import GenericBTDevice
+from .coordinator import ThermometerCoordinator
+from .generic_bt_api.device import BLEThermometer
 
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.BINARY_SENSOR]
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Generic BT from a config entry."""
@@ -25,10 +26,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     address: str = entry.data[CONF_ADDRESS]
     ble_device = bluetooth.async_ble_device_from_address(hass, address.upper(), True)
     if not ble_device:
-        raise ConfigEntryNotReady(f"Could not find Generic BT Device with address {address}")
-    device = GenericBTDevice(ble_device)
+        raise ConfigEntryNotReady(
+            f"Could not find Generic BT Device with address {address}"
+        )
+    device = BLEThermometer(ble_device)
 
-    coordinator = hass.data[DOMAIN][entry.entry_id] = GenericBTCoordinator(hass, _LOGGER, ble_device, device, entry.title, entry.unique_id, True)
+    coordinator = hass.data[DOMAIN][entry.entry_id] = ThermometerCoordinator(
+        hass, _LOGGER, ble_device, device, entry.title, entry.unique_id, True
+    )
     entry.async_on_unload(coordinator.async_start())
 
     if not await coordinator.async_wait_ready():
@@ -43,6 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
     await hass.config_entries.async_reload(entry.entry_id)
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""

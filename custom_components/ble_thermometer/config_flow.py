@@ -8,14 +8,18 @@ from bluetooth_data_tools import human_readable_name
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, async_discovered_service_info
+from homeassistant.components.bluetooth import (
+    BluetoothServiceInfoBleak,
+    async_discovered_service_info,
+)
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN
-from .generic_bt_api.device import GenericBTDevice
+from .generic_bt_api.device import BLEThermometer
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Generic BT."""
@@ -27,18 +31,26 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, BluetoothServiceInfoBleak] = {}
 
-    async def async_step_bluetooth(self, discovery_info: BluetoothServiceInfoBleak) -> FlowResult:
+    async def async_step_bluetooth(
+        self, discovery_info: BluetoothServiceInfoBleak
+    ) -> FlowResult:
         """Handle the bluetooth discovery step."""
-        #if discovery_info.name.startswith(UNSUPPORTED_SUB_MODEL):
+        # if discovery_info.name.startswith(UNSUPPORTED_SUB_MODEL):
         #    return self.async_abort(reason="not_supported")
 
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
         self._discovery_info = discovery_info
-        self.context["title_placeholders"] = {"name": human_readable_name(None, discovery_info.name, discovery_info.address)}
+        self.context["title_placeholders"] = {
+            "name": human_readable_name(
+                None, discovery_info.name, discovery_info.address
+            )
+        }
         return await self.async_step_user()
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Handle the user step to pick discovered device."""
         errors: dict[str, str] = {}
 
@@ -46,9 +58,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             address = user_input[CONF_ADDRESS]
             discovery_info = self._discovered_devices[address]
             local_name = discovery_info.name
-            await self.async_set_unique_id(discovery_info.address, raise_on_progress=False)
+            await self.async_set_unique_id(
+                discovery_info.address, raise_on_progress=False
+            )
             self._abort_if_unique_id_configured()
-            device = GenericBTDevice(discovery_info.device)
+            device = BLEThermometer(discovery_info.device)
             try:
                 await device.update()
             except BLEAK_EXCEPTIONS:
@@ -58,7 +72,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "unknown"
             else:
                 await device.stop()
-                return self.async_create_entry(title=local_name,data={CONF_ADDRESS: discovery_info.address})
+                return self.async_create_entry(
+                    title=local_name, data={CONF_ADDRESS: discovery_info.address}
+                )
 
         if discovery := self._discovery_info:
             self._discovered_devices[discovery.address] = discovery
@@ -79,10 +95,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_ADDRESS): vol.In(
                     {
-                        service_info.address: (f"{service_info.name} ({service_info.address})")
+                        service_info.address: (
+                            f"{service_info.name} ({service_info.address})"
+                        )
                         for service_info in self._discovered_devices.values()
                     }
                 ),
             }
         )
-        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
+        return self.async_show_form(
+            step_id="user", data_schema=data_schema, errors=errors
+        )
