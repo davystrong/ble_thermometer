@@ -11,7 +11,6 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN
 from .coordinator import ThermometerCoordinator
-from .generic_bt_api.device import BLEThermometer
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,10 +28,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady(
             f"Could not find Generic BT Device with address {address}"
         )
-    device = BLEThermometer(ble_device)
 
     coordinator = hass.data[DOMAIN][entry.entry_id] = ThermometerCoordinator(
-        hass, _LOGGER, ble_device, device, entry.title, entry.unique_id, True
+        hass, _LOGGER, ble_device, entry.title, entry.unique_id, True
     )
     entry.async_on_unload(coordinator.async_start())
 

@@ -14,7 +14,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN, Schema
 from .coordinator import ThermometerCoordinator
-from .entity import GenericBTEntity
+from .entity import ThermometerEntity
 from .generic_bt_api.device import BLEThermometer
 
 
@@ -39,7 +39,7 @@ async def async_setup_entry(
     )
 
 
-class GenericBTBinarySensor(GenericBTEntity, BinarySensorEntity):
+class GenericBTBinarySensor(ThermometerEntity, BinarySensorEntity):
     """Representation of a Generic BT Binary Sensor."""
 
     _attr_name = None

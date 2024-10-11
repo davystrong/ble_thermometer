@@ -1,11 +1,11 @@
 {
-  "domain": "generic_bt",
-  "name": "Generic Bluetooth",
-  "codeowners": ["@fuatakgun"],
+  "domain": "ble_thermometer",
+  "name": "BLE Thermometer",
+  "codeowners": ["@davystrong"],
   "config_flow": true,
   "dependencies": ["bluetooth_adapters"],
   "iot_class": "local_push",
   "integration_type": "hub",
-  "version": "1.0.0",
-  "documentation": "https://github.com/fuatakgun/generic_bt"
+  "version": "0.1.0",
+  "documentation": "https://github.com/davystrong/ble_thermometer"
 }
