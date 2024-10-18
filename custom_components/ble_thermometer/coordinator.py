@@ -12,6 +12,11 @@ from homeassistant.components.bluetooth.active_update_coordinator import (
 )
 from homeassistant.core import CoreState, HomeAssistant, callback
 from bleak.backends.device import BLEDevice
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .const import DOMAIN, DEVICE_STARTUP_TIMEOUT_SECONDS
 
@@ -24,33 +29,25 @@ import struct
 _LOGGER = logging.getLogger(__name__)
 
 
-class ThermometerCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
+class ThermometerCoordinator(DataUpdateCoordinator[None]):
     def __init__(
         self,
         hass: HomeAssistant,
-        logger: logging.Logger,
         ble_device: BLEDevice,
-        device_name: str,
-        base_unique_id: str,
-        connectable: bool,
     ) -> None:
         """Initialize global generic bt data updater."""
         super().__init__(
             hass=hass,
-            logger=logger,
-            address=ble_device.address,
-            needs_poll_method=self._needs_poll,
-            # poll_method=self._async_update,
-            mode=bluetooth.BluetoothScanningMode.ACTIVE,
-            connectable=connectable,
+            logger=_LOGGER,
+            name=DOMAIN
         )
         self.ble_device = ble_device
-        self.device_name = device_name
-        self.base_unique_id = base_unique_id
-        self._ready_event = asyncio.Event()
-        self._was_unavailable = True
-        self._client: BleakClient
-        self.data = {"temperature": None, "humidity": None, "voltage": None}
+        # self.data = {"temperature": None, "humidity": None, "voltage": None}
+        self.payload = {}
+        self._notify_ids = [
+            "00001f1f-0000-1000-8000-00805f9b34fb"
+        ]
+        _LOGGER.warning("Init complete")
 
     async def _async_setup(self):
         """Set up the coordinator
@@ -61,35 +58,58 @@ class ThermometerCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
         This method will be called automatically during
         coordinator.async_config_entry_first_refresh.
         """
-        self._client = BleakClient(self.ble_device, timeout=30)
-        await self._client.connect()
-        await self._client.write_gatt_char(
+        _LOGGER.warning("Setting up started")
+        self.client = BleakClient(self.ble_device, timeout=30)
+        await self.client.connect()
+        await self.client.write_gatt_char(
             "00001f1f-0000-1000-8000-00805f9b34fb", bytearray.fromhex("33ff")
         )
-        await self._client.start_notify(
-            "00001f1f-0000-1000-8000-00805f9b34fb", self.therm_data_callback
-        )
+        for id in self._notify_ids:
+            await self.client.start_notify(
+                id, self.data_callback
+            )
 
-    async def therm_data_callback(self, char, payload):
+        _LOGGER.warning("Setting up finished")
+
+    async def _async_update_data(self):
+        return self.payload
+
+    async def data_callback(self, char, payload):
+        command, *_ = struct.unpack(
+            "<B", payload[:1]
+        )
+        self.payload[command] = payload
+        _LOGGER.warning("Callback received")
+        self.async_set_updated_data(self.payload)
+        self.last_update_success = True
+        return
+        _LOGGER.warning("Callback received")
         try:
             command, voltage, temperature, humidity, count = struct.unpack(
-                "<BHhHB", payload[:10]
+                "<BHhHB", payload[:8]
             )
             assert command == 0x33
             _LOGGER.debug(
                 f"{command}, {voltage}, {temperature}, {humidity}, {count}, {payload}"
             )
             self.data = {
-                "temperature": temperature,
-                "humidity": humidity,
-                "voltage": voltage,
+                "temperature": temperature/100,
+                "humidity": humidity/100,
+                "voltage": voltage/1000,
+                "payload": str(payload)
             }
-        except struct.error:
-            pass
+            self.async_set_updated_data(self.data)
+            self.last_update_success = True
+        except struct.error as e:
+            self.last_update_success = False
+            _LOGGER.warning(e)
+            _LOGGER.warning(payload)
+        _LOGGER.warning("Callback finished")
 
     async def async_shutdown(self) -> None:
-        await self._client.stop_notify("00001f1f-0000-1000-8000-00805f9b34fb")
-        await self._client.disconnect()
+        for id in self._notify_ids:
+            await self.client.stop_notify(id)
+        await self.client.disconnect()
         await super().async_shutdown()
 
     @callback
@@ -131,7 +151,7 @@ class ThermometerCoordinator(ActiveBluetoothDataUpdateCoordinator[None]):
             return
 
         self._was_unavailable = False
-        self.device.update_from_advertisement(service_info.advertisement)
+        # self.device.update_from_advertisement(service_info.advertisement)
         super()._async_handle_bluetooth_event(service_info, change)
 
     async def async_wait_ready(self) -> bool:

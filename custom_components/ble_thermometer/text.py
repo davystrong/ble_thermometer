@@ -46,15 +46,17 @@ async def async_setup_entry(
     coordinator: ThermometerCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities(
         [
-            TemperatureSensor(coordinator),
-            HumiditySensor(coordinator),
-            VoltageSensor(coordinator),
-            # PayloadSensor(coordinator),
+            PayloadEntity(coordinator),
         ]
     )
 
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        "write_gatt", Schema.WRITE_GATT.value, "write_gatt"
+    )
 
-class ThermometerEntity(CoordinatorEntity):
+
+class PayloadEntity(CoordinatorEntity):
     """Representation of a sensor."""
 
     def __init__(self, coordinator: ThermometerCoordinator):
@@ -62,8 +64,9 @@ class ThermometerEntity(CoordinatorEntity):
         self.coordinator = coordinator
         self.attrs = {}
         self._state = 0
-        self._data_key = None
+        self._data_key = "payload"
         self._entity_id = None
+        self.name = 'Payload 0x33'
 
     @property
     def entity_id(self):
@@ -84,27 +87,10 @@ class ThermometerEntity(CoordinatorEntity):
     @property
     def state(self):
         """Return the state of the sensor."""
-        assert self._data_key is not None
         try:
-            payload = self.coordinator.payload[0x33]
-            command, voltage, temperature, humidity, count = struct.unpack(
-                "<BHhHB", payload[:8]
-            )
-            assert command == 0x33
-            _LOGGER.debug(
-                f"{command}, {voltage}, {temperature}, {humidity}, {count}, {payload}"
-            )
-            data = {
-                "temperature": temperature/100,
-                "humidity": humidity/100,
-                "voltage": voltage/1000,
-            }
-            value = data[self._data_key]
-            self.attrs[self._data_key] = value
-            return value
-        except struct.error as e:
-            _LOGGER.warning(e)
-            _LOGGER.warning(payload)
+            payload = self.coordinator.payload[0x33].hex()
+            self.attrs[self._data_key] = payload
+            return payload
         except KeyError:
             _LOGGER.warning("Not ready yet")
         
@@ -112,6 +98,12 @@ class ThermometerEntity(CoordinatorEntity):
     @property
     def extra_state_attributes(self):
         return self.attrs
+    
+    async def write_gatt(self, target_uuid, data):
+        await self.coordinator.client.write_gatt_char(
+            target_uuid, bytearray.fromhex(data)
+        )
+        self.async_write_ha_state()
     
     # @callback
     # def _handle_coordinator_update(self) -> None:
@@ -121,36 +113,3 @@ class ThermometerEntity(CoordinatorEntity):
     #     if value is not None:
     #         self._attr_native_value = value
     #         self.async_write_ha_state()
-
-class TemperatureSensor(ThermometerEntity):
-    unit_of_measurement = "°C"
-    def __init__(self, coordinator: ThermometerCoordinator) -> None:
-        super().__init__(coordinator)
-        self._data_key = "temperature"
-        self.name = 'Temperature'
-        self.icon = "mdi:thermometer"
-
-
-class HumiditySensor(ThermometerEntity):
-    unit_of_measurement = "%"
-    def __init__(self, coordinator: ThermometerCoordinator) -> None:
-        super().__init__(coordinator)
-        self._data_key = "humidity"
-        self.name = "Humidity"
-        self.icon = "mdi:water-percent"
-
-
-class VoltageSensor(ThermometerEntity):
-    unit_of_measurement = "V"
-    def __init__(self, coordinator: ThermometerCoordinator) -> None:
-        super().__init__(coordinator)
-        self._data_key = "voltage"
-        self.name = "Voltage"
-        self.icon = "mdi:lightning-bolt"
-
-# class PayloadSensor(ThermometerEntity):
-#     unit_of_measurement = "V"
-#     def __init__(self, coordinator: ThermometerCoordinator) -> None:
-#         super().__init__(coordinator)
-#         self._data_key = "payload"
-#         self.name = "Payload"

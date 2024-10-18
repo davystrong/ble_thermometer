@@ -3,7 +3,7 @@ write_gatt:
   description: Write Data into Target UUID
   target:
     entity:
-      domain: binary_sensor
+      domain: text
       integration: ble_thermometer
   fields:
     target_uuid:

@@ -5,7 +5,7 @@ from enum import Enum, auto
 from homeassistant.helpers.config_validation import make_entity_service_schema
 import homeassistant.helpers.config_validation as cv
 
-DOMAIN = "generic_bt"
+DOMAIN = "ble_thermometer"
 DEVICE_STARTUP_TIMEOUT_SECONDS = 30
 
 class Schema(Enum):
@@ -17,8 +17,8 @@ class Schema(Enum):
             vol.Required("data"): cv.string
         }
     )
-    READ_GATT = make_entity_service_schema(
-        {
-            vol.Required("target_uuid"): cv.string
-        }
-    )
+    # READ_GATT = make_entity_service_schema(
+    #     {
+    #         vol.Required("target_uuid"): cv.string
+    #     }
+    # )
